@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --main-bg: #F5F7FC;
+  --card-bg: #FFFFFF;
+  --navy: #0B1733;
+  --navy-hover: #16264C;
+  --secondary-text: #71819E;
+  --accent-orange: #FF851B;
+  --accent-light: #FFF3E8;
+  --border-subtle: #E2E8F2;
+
+  --background: #F5F7FC;
+  --foreground: #0B1733;
+}
+
+@theme {
+  --color-main-bg: #F5F7FC;
+  --color-card-bg: #FFFFFF;
+  --color-navy: #0B1733;
+  --color-navy-hover: #16264C;
+  --color-secondary-text: #71819E;
+  --color-accent-orange: #FF851B;
+  --color-accent-light: #FFF3E8;
+  --color-border-subtle: #E2E8F2;
+}
+
+body {
+  background-color: #F5F7FC;
+  color: #0B1733;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  min-height: 100vh;
+}
+
+/* Premium Navy & White Utility Classes */
+.bg-main { background-color: #F5F7FC; }
+.bg-card { background-color: #FFFFFF; }
+.bg-navy { background-color: #0B1733; }
+.bg-accent { background-color: #FF851B; }
+.bg-accent-light { background-color: #FFF3E8; }
+
+.text-navy { color: #0B1733; }
+.text-secondary { color: #71819E; }
+.text-accent { color: #FF851B; }
+
+.border-subtle { border-color: #E2E8F2; }
+.border-navy { border-color: #0B1733; }
+.border-accent { border-color: #FF851B; }
+
+.hover\:bg-navy-hover:hover { background-color: #16264C; }
+.hover\:text-accent:hover { color: #FF851B; }
