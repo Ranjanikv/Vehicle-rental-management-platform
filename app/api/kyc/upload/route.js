@@ -1,5 +1,3 @@
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/lib/models/User";
@@ -8,12 +6,12 @@ import { processLicenceDocument } from "@/lib/ocr";
 
 export async function POST(req) {
   const requestStartTime = Date.now();
-  let fileSaveDuration = 0;
   let ocrDuration = 0;
   let dbDuration = 0;
 
   try {
     const authUser = await getAuthUser(req);
+
     if (!authUser) {
       return Response.json(
         { success: false, message: "Authentication required" },
@@ -26,74 +24,91 @@ export async function POST(req) {
 
     if (!file || typeof file === "string") {
       return Response.json(
-        { success: false, message: "Driving licence file is required" },
-        { status: 400 }
-      );
-    }
-
-    // 1. File Extension & MIME Type Validation
-    const fileExt = path.extname(file.name).toLowerCase();
-    const mimeType = file.type || "";
-
-    const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
-    const allowedMimeTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/jpg",
-      "application/pdf"
-    ];
-
-    if (!allowedExtensions.includes(fileExt) && !allowedMimeTypes.includes(mimeType)) {
-      return Response.json(
         {
           success: false,
-          message: "Invalid file type. Supported formats: JPG, JPEG, PNG, WEBP, PDF."
+          message: "Driving licence file is required"
         },
         { status: 400 }
       );
     }
 
-    // 2. File Size Validation (Max 10MB)
-    const MAX_SIZE = 10 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
+    const filename = file.name || "";
+    const fileExt = filename.includes(".")
+      ? `.${filename.split(".").pop().toLowerCase()}`
+      : "";
+    const mimeType = file.type || "";
+
+    const allowedExtensions = [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".pdf"
+    ];
+
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf"
+    ];
+
+    if (
+      !allowedExtensions.includes(fileExt) &&
+      !allowedMimeTypes.includes(mimeType)
+    ) {
       return Response.json(
-        { success: false, message: "File size exceeds the 10MB limit." },
+        {
+          success: false,
+          message:
+            "Invalid file type. Supported formats: JPG, JPEG, PNG, WEBP, PDF."
+        },
         { status: 400 }
       );
     }
 
-    console.log(`\n========================================`);
-    console.log(`[KYC UPLOAD START] User ID: ${authUser.id}`);
-    console.log(`FILE TYPE: ${mimeType || fileExt} | FILE SIZE: ${file.size} bytes`);
+    const MAX_SIZE = 10 * 1024 * 1024;
 
-    // Convert file to Buffer
+    if (file.size > MAX_SIZE) {
+      return Response.json(
+        {
+          success: false,
+          message: "File size exceeds the 10MB limit."
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log("\n========================================");
+    console.log(`[KYC UPLOAD START] User ID: ${authUser.id}`);
+    console.log(
+      `FILE TYPE: ${mimeType || fileExt} | FILE SIZE: ${file.size} bytes`
+    );
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 3. Save File Locally
-    const fileSaveStart = Date.now();
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", "licences");
-    await mkdir(uploadsDir, { recursive: true });
+    // Process directly from memory; do not write to public/ on Vercel.
+    // Persistent document storage must be configured separately.
+    const publicUrl = null;
 
-    const filename = `${authUser.id}_${Date.now()}${fileExt}`;
-    const filePath = path.join(uploadsDir, filename);
-
-    await writeFile(filePath, buffer);
-    const publicUrl = `/uploads/licences/${filename}`;
-    fileSaveDuration = Date.now() - fileSaveStart;
-    console.log(`FILE SAVE TIME: ${fileSaveDuration} ms -> Saved to ${publicUrl}`);
-
-    // 4. Process Document (Image / PDF OCR Scanning)
     const ocrStart = Date.now();
-    let ocrRes = null;
+    let ocrRes;
+
     try {
-      ocrRes = await processLicenceDocument(buffer, mimeType, file.name, authUser.name);
+      ocrRes = await processLicenceDocument(
+        buffer,
+        mimeType,
+        filename,
+        authUser.name
+      );
     } catch (ocrError) {
-      console.error("[KYC OCR EXCEPTION]", ocrError.message);
+      console.error("[KYC OCR EXCEPTION]", ocrError);
+
       ocrRes = {
         success: false,
         isPdf: fileExt === ".pdf",
+        rawTextLength: 0,
         text: "",
         parsed: {
           readable: false,
@@ -110,11 +125,17 @@ export async function POST(req) {
         }
       };
     }
-    ocrDuration = Date.now() - ocrStart;
 
+    ocrDuration = Date.now() - ocrStart;
     const parsed = ocrRes.parsed || {};
-    console.log(`OCR ENGINE TIME: ${ocrDuration} ms | TEXT LENGTH: ${ocrRes.rawTextLength || 0} chars`);
-    console.log(`FIELD EXTRACTION RESULTS:`, {
+
+    console.log(
+      `OCR ENGINE TIME: ${ocrDuration} ms | TEXT LENGTH: ${
+        ocrRes.rawTextLength || ocrRes.text?.length || 0
+      } chars`
+    );
+
+    console.log("FIELD EXTRACTION RESULTS:", {
       Name: parsed.extractedName ? "Extracted" : "Not detected",
       DL_Number: parsed.licenseNo ? "Extracted" : "Not detected",
       DOB: parsed.dob ? "Extracted" : "Not detected",
@@ -129,15 +150,18 @@ export async function POST(req) {
     let finalValidFrom = parsed.validFrom || null;
     let finalValidTo = parsed.validTo || null;
 
-    if (finalValidFrom && finalValidTo && finalValidFrom === finalValidTo) {
-      finalValidTo = null;
-    }
-    if (finalValidFrom && finalValidTo && new Date(finalValidTo) <= new Date(finalValidFrom)) {
-      finalValidTo = null;
+    if (finalValidFrom && finalValidTo) {
+      if (finalValidFrom === finalValidTo) {
+        finalValidTo = null;
+      } else if (
+        new Date(finalValidTo) <= new Date(finalValidFrom)
+      ) {
+        finalValidTo = null;
+      }
     }
 
-    // 5. Update MongoDB User Record with status = 'PENDING' ALWAYS
     const dbStart = Date.now();
+
     await connectToDatabase();
 
     const updateData = {
@@ -145,16 +169,29 @@ export async function POST(req) {
       license_no: finalLicenseNo,
       license_name: finalLicenseName,
       license_dob: finalDob ? new Date(finalDob) : null,
-      license_valid_from: finalValidFrom ? new Date(finalValidFrom) : null,
-      license_valid_to: finalValidTo ? new Date(finalValidTo) : null,
+      license_valid_from: finalValidFrom
+        ? new Date(finalValidFrom)
+        : null,
+      license_valid_to: finalValidTo
+        ? new Date(finalValidTo)
+        : null,
       kyc_status: "PENDING",
-      kyc_reason: null,
+      kyc_reason: null
     };
 
     let updatedUser = null;
-    if (authUser.id && mongoose.Types.ObjectId.isValid(authUser.id)) {
-      updatedUser = await User.findByIdAndUpdate(authUser.id, updateData, { new: true });
+
+    if (
+      authUser.id &&
+      mongoose.Types.ObjectId.isValid(authUser.id)
+    ) {
+      updatedUser = await User.findByIdAndUpdate(
+        authUser.id,
+        updateData,
+        { new: true }
+      );
     }
+
     if (!updatedUser && authUser.email) {
       updatedUser = await User.findOneAndUpdate(
         { email: authUser.email.toLowerCase() },
@@ -163,20 +200,39 @@ export async function POST(req) {
       );
     }
 
+    if (!updatedUser) {
+      console.error(
+        "[KYC UPLOAD ERROR] User record was not found for update."
+      );
+
+      return Response.json(
+        {
+          success: false,
+          message: "Could not update your user record. Please try again."
+        },
+        { status: 404 }
+      );
+    }
+
     dbDuration = Date.now() - dbStart;
     const totalDuration = Date.now() - requestStartTime;
 
-    console.log(`DATABASE TIME: ${dbDuration} ms | TOTAL REQUEST TIME: ${totalDuration} ms`);
-    console.log(`========================================\n`);
+    console.log(
+      `DATABASE TIME: ${dbDuration} ms | TOTAL REQUEST TIME: ${totalDuration} ms`
+    );
+    console.log("========================================\n");
 
-    // Dynamic message based on extraction outcome
-    let userMessage = "";
+    let userMessage;
+
     if (parsed.readabilityStatus === "READABLE") {
-      userMessage = "Driving licence uploaded and scanned. Status set to PENDING admin review.";
+      userMessage =
+        "Driving licence scanned. Status set to PENDING admin review. Document storage is not configured.";
     } else if (parsed.readabilityStatus === "PARTIALLY_READABLE") {
-      userMessage = "Licence uploaded successfully. Some details could not be extracted and require admin verification.";
+      userMessage =
+        "Some licence details could not be extracted. Admin verification is required. Document storage is not configured.";
     } else {
-      userMessage = "Licence uploaded. Automatic text extraction was unsuccessful, so an admin will review the document manually.";
+      userMessage =
+        "Automatic text extraction was unsuccessful. Admin review is required. Document storage is not configured.";
     }
 
     return Response.json({
@@ -184,9 +240,9 @@ export async function POST(req) {
       message: userMessage,
       kyc_status: "PENDING",
       image: publicUrl,
-      isPdf: ocrRes.isPdf,
+      isPdf: Boolean(ocrRes.isPdf),
       timings: {
-        fileSaveMs: fileSaveDuration,
+        fileSaveMs: 0,
         ocrMs: ocrDuration,
         dbMs: dbDuration,
         totalMs: totalDuration
@@ -201,7 +257,8 @@ export async function POST(req) {
         age: parsed.age,
         nameMatched: parsed.nameMatched,
         readable: parsed.readabilityStatus === "READABLE",
-        readabilityStatus: parsed.readabilityStatus || "UNREADABLE",
+        readabilityStatus:
+          parsed.readabilityStatus || "UNREADABLE",
         fieldDetection: {
           name: Boolean(finalLicenseName),
           licenseNo: Boolean(finalLicenseNo),
@@ -213,8 +270,16 @@ export async function POST(req) {
     });
   } catch (error) {
     console.error("[KYC UPLOAD ERROR]", error);
+
     return Response.json(
-      { success: false, message: "Failed to upload licence file. Please try again.", error: error.message },
+      {
+        success: false,
+        message: "Failed to upload licence file. Please try again.",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : undefined
+      },
       { status: 500 }
     );
   }
