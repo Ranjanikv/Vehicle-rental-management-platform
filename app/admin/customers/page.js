@@ -237,15 +237,14 @@ export default function AdminCustomersPage() {
                       </td>
                       <td className="py-3.5 px-4">
                         <span
-                          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase border ${
-                            c.kyc_status === "VERIFIED"
+                          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase border ${c.kyc_status === "VERIFIED"
                               ? "bg-[#0B1733] text-white border-[#0B1733]"
                               : c.kyc_status === "PENDING"
-                              ? "bg-[#FFF3E8] text-[#0B1733] border border-[#FFE2CC]"
-                              : c.kyc_status === "REJECTED"
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : "bg-[#F5F7FC] text-[#71819E] border border-[#E2E8F2]"
-                          }`}
+                                ? "bg-[#FFF3E8] text-[#0B1733] border border-[#FFE2CC]"
+                                : c.kyc_status === "REJECTED"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : "bg-[#F5F7FC] text-[#71819E] border border-[#E2E8F2]"
+                            }`}
                         >
                           {c.kyc_status}
                         </span>
@@ -295,15 +294,14 @@ export default function AdminCustomersPage() {
               <h2 className="text-xl font-bold text-[#0B1733] mb-4 pb-3 border-b border-[#E2E8F2] flex items-center justify-between">
                 <span>KYC Review — {selectedCustomer.name}</span>
                 <span
-                  className={`text-xs font-extrabold px-3 py-1 rounded-full uppercase border ${
-                    selectedCustomer.kyc_status === "VERIFIED"
+                  className={`text-xs font-extrabold px-3 py-1 rounded-full uppercase border ${selectedCustomer.kyc_status === "VERIFIED"
                       ? "bg-[#0B1733] text-white border-[#0B1733]"
                       : selectedCustomer.kyc_status === "PENDING"
-                      ? "bg-[#FFF3E8] text-[#0B1733] border border-[#FFE2CC]"
-                      : selectedCustomer.kyc_status === "REJECTED"
-                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                      : "bg-[#F5F7FC] text-[#71819E] border border-[#E2E8F2]"
-                  }`}
+                        ? "bg-[#FFF3E8] text-[#0B1733] border border-[#FFE2CC]"
+                        : selectedCustomer.kyc_status === "REJECTED"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-[#F5F7FC] text-[#71819E] border border-[#E2E8F2]"
+                    }`}
                 >
                   {selectedCustomer.kyc_status}
                 </span>
@@ -316,7 +314,7 @@ export default function AdminCustomersPage() {
                     <span>Uploaded Document</span>
                     {selectedCustomer.license_image && (
                       <a
-                        href={selectedCustomer.license_image}
+                        href={`/api/kyc/document?userId=${selectedCustomer.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[#0B1733] hover:text-[#FF851B] flex items-center gap-1 font-bold text-[11px] transition-colors"
@@ -326,23 +324,19 @@ export default function AdminCustomersPage() {
                     )}
                   </h3>
                   <div className="bg-[#F5F7FC] rounded-xl overflow-hidden border border-[#E2E8F2] h-64 flex items-center justify-center">
+
                     {selectedCustomer.license_image ? (
-                      selectedCustomer.license_image.toLowerCase().endsWith(".pdf") ? (
-                        <iframe
-                          src={selectedCustomer.license_image}
-                          title="PDF Licence Document"
-                          className="w-full h-full border-0"
-                        />
-                      ) : (
-                        <img
-                          src={selectedCustomer.license_image}
-                          alt="Licence Document"
-                          className="w-full h-full object-contain"
-                        />
-                      )
+                      <iframe
+                        src={`/api/kyc/document?userId=${selectedCustomer.id}`}
+                        title="Driving Licence Document"
+                        className="w-full h-full border-0"
+                      />
                     ) : (
-                      <span className="text-[#71819E] text-xs font-medium">No document uploaded</span>
+                      <span className="text-[#71819E] text-xs font-medium">
+                        No document uploaded
+                      </span>
                     )}
+
                   </div>
                 </div>
 
