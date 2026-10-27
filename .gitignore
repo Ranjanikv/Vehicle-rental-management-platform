@@ -50,3 +50,6 @@ cookies.txt
 
 # Local testing files
 /scratch/test_agreement.pdf
+
+.vercel
+.env*
